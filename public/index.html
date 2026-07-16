@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GMGN AI Trader Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">AI TRADER</span>
+                <span class="logo-sub">// Screen + One-Click Trade</span>
+            </div>
+            <div class="header-status">
+                <span class="wallet-badge" id="wallet-badge">
+                    🟢 <span id="wallet-short">0x...0000</span>
+                    <span class="wallet-balance-header" id="wallet-balance-header">0.00 SOL</span>
+                </span>
+                <span class="version">v1.0.0</span>
+                <span class="chain">SOL</span>
+                <span id="bot-status" class="status-badge stopped">⏹ STOPPED</span>
+                <span class="latency">12ms</span>
+            </div>
+        </header>
+
+        <!-- STATS ROW -->
+        <section class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Scanned</div>
+                <div class="stat-value" id="total-scanned">0</div>
+                <div class="stat-sub">3 rounds - top N prefixes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Past Safety</div>
+                <div class="stat-value" id="past-safety">0</div>
+                <div class="stat-sub">blocked 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Past Consensus</div>
+                <div class="stat-value" id="past-consensus">0</div>
+                <div class="stat-sub">blocked 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Awaiting You</div>
+                <div class="stat-value" id="awaiting-buy">0</div>
+                <div class="stat-sub">click to buy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Positions / cap</div>
+                <div class="stat-value" id="positions">0</div>
+                <div class="stat-sub">exposure 0 SOL</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Escape Alerts</div>
+                <div class="stat-value" id="escape-alerts">100%</div>
+                <div class="stat-sub">0 rules missed</div>
+            </div>
+        </section>
+
+        <!-- CONTROLS -->
+        <section class="controls">
+            <button id="start-btn" class="btn btn-start">▶ START BOT</button>
+            <button id="stop-btn" class="btn btn-stop">⏹ STOP BOT</button>
+            <button id="scan-btn" class="btn btn-scan">🔄 SCAN NOW</button>
+            <button id="logout-btn" class="btn btn-logout">🚪 Logout</button>
+            <span class="control-status" id="control-status">Bot: STOPPED</span>
+        </section>
+
+        <!-- TOKEN TABLE -->
+        <section class="token-section">
+            <div class="section-header">
+                <h2>📊 Screening Results - Awaiting Your Call</h2>
+                <span class="badge" id="token-count">0 tokens</span>
+            </div>
+            <div class="table-wrapper">
+                <table id="token-table">
+                    <thead>
+                        <tr>
+                            <th>TOKEN</th>
+                            <th>PRICE</th>
+                            <th>LIQ</th>
+                            <th>VOL</th>
+                            <th>HOLDERS</th>
+                            <th>RUG</th>
+                            <th>1H%</th>
+                            <th>BUY%</th>
+                            <th>HOT</th>
+                            <th>PRIORITY</th>
+                            <th>DECISION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="token-body">
+                        <tr><td colspan="11" class="loading">⏳ Waiting for scan...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- GATE FUNNEL -->
+        <section class="funnel-section">
+            <div class="funnel">
+                <div class="funnel-step">
+                    <span class="step-label">Scan</span>
+                    <span class="step-count" id="funnel-scan">0</span>
+                </div>
+                <div class="funnel-arrow">→</div>
+                <div class="funnel-step">
+                    <span class="step-label">Safety</span>
+                    <span class="step-count" id="funnel-safety">0</span>
+                </div>
+                <div class="funnel-arrow">→</div>
+                <div class="funnel-step">
+                    <span class="step-label">Consensus</span>
+                    <span class="step-count" id="funnel-consensus">0</span>
+                </div>
+                <div class="funnel-arrow">→</div>
+                <div class="funnel-step">
+                    <span class="step-label">ML Rank</span>
+                    <span class="step-count" id="funnel-ml">0</span>
+                </div>
+                <div class="funnel-arrow">→</div>
+                <div class="funnel-step">
+                    <span class="step-label">LLM</span>
+                    <span class="step-count" id="funnel-llm">0</span>
+                </div>
+                <div class="funnel-arrow">→</div>
+                <div class="funnel-step highlight">
+                    <span class="step-label">Pending</span>
+                    <span class="step-count" id="funnel-pending">0</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- OPEN POSITIONS -->
+        <section class="positions-section">
+            <div class="section-header">
+                <h2>📈 Open Positions</h2>
+                <span class="badge" id="pos-count">0</span>
+            </div>
+            <div class="positions-grid" id="positions-grid">
+                <div class="empty-state">No open positions</div>
+            </div>
+        </section>
+
+        <!-- DECISION LOG -->
+        <section class="log-section">
+            <div class="section-header">
+                <h2>📋 Live Decision Log</h2>
+                <span class="badge" id="log-count">0</span>
+            </div>
+            <div class="log-container" id="log-container">
+                <div class="log-empty">⏳ Waiting for decisions...</div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <span>GMGN AI Trader v1.0.0</span>
+            <span>•</span>
+            <span id="footer-time">Live</span>
+            <span>•</span>
+            <span>Socket: <span id="socket-status">🟢 Connected</span></span>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
