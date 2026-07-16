@@ -1,173 +1,645 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GMGN AI Trader Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="/socket.io/socket.io.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>⚡ AI TRADER // Screen + One-Click Trade</title>
+    <style>
+        /* ===== RESET & BASE ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Courier New', monospace;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard {
+            max-width: 1400px;
+            width: 100%;
+            background: #111;
+            border-radius: 24px;
+            padding: 24px 28px 20px;
+            box-shadow: 0 0 60px rgba(204, 255, 0, 0.05);
+            border: 1px solid #2a2a2a;
+            transition: all 0.3s;
+        }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ccff00;
+            border-radius: 8px;
+        }
+
+        /* ===== TYPOGRAPHY & ANIMATIONS ===== */
+        .highlight {
+            color: #ccff00;
+            text-shadow: 0 0 12px rgba(204, 255, 0, 0.3);
+        }
+
+        .glow-text {
+            animation: glowPulse 2s infinite alternate;
+        }
+
+        @keyframes glowPulse {
+            0% { text-shadow: 0 0 4px #ccff00, 0 0 8px #ccff00; }
+            100% { text-shadow: 0 0 12px #ccff00, 0 0 24px #ccff00; }
+        }
+
+        .shimmer {
+            background: linear-gradient(90deg, #ccff00 30%, #ffffff 50%, #ccff00 70%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: shimmer 3s infinite linear;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .pulse-border {
+            animation: pulseBorder 2s infinite;
+        }
+
+        @keyframes pulseBorder {
+            0% { border-color: #ccff00; box-shadow: 0 0 8px rgba(204, 255, 0, 0.2); }
+            50% { border-color: #ccff00; box-shadow: 0 0 20px rgba(204, 255, 0, 0.6); }
+            100% { border-color: #ccff00; box-shadow: 0 0 8px rgba(204, 255, 0, 0.2); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stat-card {
+            transition: all 0.2s ease;
+            border: 1px solid #2a2a2a;
+            background: #161616;
+            border-radius: 12px;
+            padding: 14px 16px;
+            backdrop-filter: blur(4px);
+        }
+        .stat-card:hover {
+            border-color: #ccff00;
+            box-shadow: 0 0 24px rgba(204, 255, 0, 0.08);
+            transform: scale(1.02);
+        }
+
+        .btn {
+            border: none;
+            padding: 10px 22px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #2a2a2a;
+            color: #ccc;
+            letter-spacing: 0.3px;
+        }
+        .btn-start {
+            background: #1e7a1e;
+            color: #fff;
+        }
+        .btn-start:hover {
+            background: #2a9e2a;
+            box-shadow: 0 0 20px rgba(46, 204, 113, 0.3);
+        }
+        .btn-start.active {
+            background: #ccff00;
+            color: #0a0a0a;
+            box-shadow: 0 0 30px #ccff00;
+        }
+        .btn-stop {
+            background: #8b2b2b;
+            color: #fff;
+        }
+        .btn-stop:hover {
+            background: #b33a3a;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+        }
+        .btn-scan {
+            background: #1f4f8a;
+            color: #fff;
+        }
+        .btn-scan:hover {
+            background: #2a6bb3;
+            box-shadow: 0 0 20px rgba(30, 144, 255, 0.3);
+        }
+        .btn-buy {
+            background: #ccff00;
+            color: #0a0a0a;
+            font-weight: 700;
+            padding: 4px 16px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.15s;
+        }
+        .btn-buy:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 24px #ccff00;
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ===== TABLE ===== */
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 12px;
+            background: #121212;
+            padding: 4px 0;
+        }
+        .token-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .token-table th {
+            text-align: left;
+            padding: 12px 10px 8px 10px;
+            color: #888;
+            font-weight: 500;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .token-table td {
+            padding: 10px 10px;
+            border-bottom: 1px solid #1f1f1f;
+            vertical-align: middle;
+        }
+        .token-table tr:hover td {
+            background: #1a1a1a;
+        }
+
+        .rug-low { color: #ccff00; }
+        .rug-mid { color: #f1c40f; }
+        .rug-high { color: #e74c3c; }
+
+        .change-up { color: #ccff00; }
+        .change-down { color: #ff6b6b; }
+
+        /* ===== FUNNEL ===== */
+        .funnel-step {
+            background: #1a1a1a;
+            border-radius: 30px;
+            padding: 6px 14px;
+            text-align: center;
+            border: 1px solid #2a2a2a;
+            transition: 0.3s;
+            min-width: 70px;
+        }
+        .funnel-step .num {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ccff00;
+            display: block;
+            line-height: 1.2;
+        }
+        .funnel-step .label {
+            font-size: 10px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .funnel-arrow {
+            font-size: 22px;
+            color: #555;
+            padding: 0 4px;
+        }
+
+        /* ===== POSITION CARDS ===== */
+        .pos-card {
+            background: #181818;
+            border-radius: 12px;
+            padding: 12px 16px;
+            border: 1px solid #2a2a2a;
+            transition: 0.2s;
+            min-width: 180px;
+        }
+        .pos-card:hover {
+            border-color: #ccff00;
+        }
+
+        /* ===== LOG ===== */
+        .log-box {
+            background: #0d0d0d;
+            border-radius: 12px;
+            padding: 12px 16px;
+            height: 130px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            border: 1px solid #1f1f1f;
+        }
+        .log-entry {
+            border-bottom: 1px solid #1a1a1a;
+            padding: 2px 0;
+        }
+        .log-entry .time {
+            color: #777;
+            margin-right: 12px;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1000px) {
+            .dashboard { padding: 16px; }
+            .stat-grid { gap: 8px; }
+            .stat-card { padding: 10px; }
+            .funnel-row { flex-wrap: wrap; }
+            .funnel-step { min-width: 60px; }
+        }
+        @media (max-width: 700px) {
+            .stat-grid { grid-template-columns: repeat(3,1fr); }
+            .control-group { flex-wrap: wrap; gap: 8px; }
+            .pos-container { flex-wrap: wrap; }
+        }
+    </style>
 </head>
 <body>
-    <div class="dashboard">
-        <!-- HEADER -->
-        <header class="header">
-            <div class="logo">
-                <span class="logo-icon">⚡</span>
-                <span class="logo-text">AI TRADER</span>
-                <span class="logo-sub">// Screen + One-Click Trade</span>
-            </div>
-            <div class="header-status">
-                <span class="wallet-badge" id="wallet-badge">
-                    🟢 <span id="wallet-short">0x...0000</span>
-                    <span class="wallet-balance-header" id="wallet-balance-header">0.00 SOL</span>
-                </span>
-                <span class="version">v1.0.0</span>
-                <span class="chain">SOL</span>
-                <span id="bot-status" class="status-badge stopped">⏹ STOPPED</span>
-                <span class="latency">12ms</span>
-            </div>
-        </header>
+<div class="dashboard" id="app">
 
-        <!-- STATS ROW -->
-        <section class="stats">
-            <div class="stat-card">
-                <div class="stat-label">Total Scanned</div>
-                <div class="stat-value" id="total-scanned">0</div>
-                <div class="stat-sub">3 rounds - top N prefixes</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Past Safety</div>
-                <div class="stat-value" id="past-safety">0</div>
-                <div class="stat-sub">blocked 0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Past Consensus</div>
-                <div class="stat-value" id="past-consensus">0</div>
-                <div class="stat-sub">blocked 0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Awaiting You</div>
-                <div class="stat-value" id="awaiting-buy">0</div>
-                <div class="stat-sub">click to buy</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Positions / cap</div>
-                <div class="stat-value" id="positions">0</div>
-                <div class="stat-sub">exposure 0 SOL</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Escape Alerts</div>
-                <div class="stat-value" id="escape-alerts">100%</div>
-                <div class="stat-sub">0 rules missed</div>
-            </div>
-        </section>
-
-        <!-- CONTROLS -->
-        <section class="controls">
-            <button id="start-btn" class="btn btn-start">▶ START BOT</button>
-            <button id="stop-btn" class="btn btn-stop">⏹ STOP BOT</button>
-            <button id="scan-btn" class="btn btn-scan">🔄 SCAN NOW</button>
-            <button id="logout-btn" class="btn btn-logout">🚪 Logout</button>
-            <span class="control-status" id="control-status">Bot: STOPPED</span>
-        </section>
-
-        <!-- TOKEN TABLE -->
-        <section class="token-section">
-            <div class="section-header">
-                <h2>📊 Screening Results - Awaiting Your Call</h2>
-                <span class="badge" id="token-count">0 tokens</span>
-            </div>
-            <div class="table-wrapper">
-                <table id="token-table">
-                    <thead>
-                        <tr>
-                            <th>TOKEN</th>
-                            <th>PRICE</th>
-                            <th>LIQ</th>
-                            <th>VOL</th>
-                            <th>HOLDERS</th>
-                            <th>RUG</th>
-                            <th>1H%</th>
-                            <th>BUY%</th>
-                            <th>HOT</th>
-                            <th>PRIORITY</th>
-                            <th>DECISION</th>
-                        </tr>
-                    </thead>
-                    <tbody id="token-body">
-                        <tr><td colspan="11" class="loading">⏳ Waiting for scan...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- GATE FUNNEL -->
-        <section class="funnel-section">
-            <div class="funnel">
-                <div class="funnel-step">
-                    <span class="step-label">Scan</span>
-                    <span class="step-count" id="funnel-scan">0</span>
-                </div>
-                <div class="funnel-arrow">→</div>
-                <div class="funnel-step">
-                    <span class="step-label">Safety</span>
-                    <span class="step-count" id="funnel-safety">0</span>
-                </div>
-                <div class="funnel-arrow">→</div>
-                <div class="funnel-step">
-                    <span class="step-label">Consensus</span>
-                    <span class="step-count" id="funnel-consensus">0</span>
-                </div>
-                <div class="funnel-arrow">→</div>
-                <div class="funnel-step">
-                    <span class="step-label">ML Rank</span>
-                    <span class="step-count" id="funnel-ml">0</span>
-                </div>
-                <div class="funnel-arrow">→</div>
-                <div class="funnel-step">
-                    <span class="step-label">LLM</span>
-                    <span class="step-count" id="funnel-llm">0</span>
-                </div>
-                <div class="funnel-arrow">→</div>
-                <div class="funnel-step highlight">
-                    <span class="step-label">Pending</span>
-                    <span class="step-count" id="funnel-pending">0</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- OPEN POSITIONS -->
-        <section class="positions-section">
-            <div class="section-header">
-                <h2>📈 Open Positions</h2>
-                <span class="badge" id="pos-count">0</span>
-            </div>
-            <div class="positions-grid" id="positions-grid">
-                <div class="empty-state">No open positions</div>
-            </div>
-        </section>
-
-        <!-- DECISION LOG -->
-        <section class="log-section">
-            <div class="section-header">
-                <h2>📋 Live Decision Log</h2>
-                <span class="badge" id="log-count">0</span>
-            </div>
-            <div class="log-container" id="log-container">
-                <div class="log-empty">⏳ Waiting for decisions...</div>
-            </div>
-        </section>
-
-        <!-- FOOTER -->
-        <footer class="footer">
-            <span>GMGN AI Trader v1.0.0</span>
-            <span>•</span>
-            <span id="footer-time">Live</span>
-            <span>•</span>
-            <span>Socket: <span id="socket-status">🟢 Connected</span></span>
-        </footer>
+    <!-- ===== HEADER ===== -->
+    <div class="flex items-center justify-between mb-4" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px; font-weight: 800; letter-spacing: -0.5px; background: linear-gradient(135deg, #ccff00, #aaff00); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 30px rgba(204,255,0,0.2);">⚡ AI TRADER</span>
+            <span style="color: #888; font-size: 14px; font-weight: 300;">// Screen + One-Click Trade</span>
+            <span style="color: #ccff00; font-size: 13px; background: #1a1a1a; padding: 2px 14px; border-radius: 30px; border: 1px solid #ccff00;">v1.0.0</span>
+            <span style="color: #888; font-size: 13px;">SOL 12ms</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span style="color: #888; font-size: 13px;">Socket:</span>
+            <span style="color: #ccff00; font-weight: 600; animation: glowPulse 1.8s infinite;">🟢 Connected</span>
+        </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- ===== STATISTIK (6 box) ===== -->
+    <div class="stat-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 18px;">
+        <div class="stat-card fade-in">
+            <div style="color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Total Scanned</div>
+            <div style="font-size: 24px; font-weight: 700; color: #ccff00;">42</div>
+            <div style="font-size: 12px; color: #777;">3 rounds</div>
+        </div>
+        <div class="stat-card fade-in">
+            <div style="color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Past Safety</div>
+            <div style="font-size: 24px; font-weight: 700; color: #ccff00;">8</div>
+            <div style="font-size: 12px; color: #777;">blocked 2</div>
+        </div>
+        <div class="stat-card fade-in">
+            <div style="color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Past Consensus</div>
+            <div style="font-size: 24px; font-weight: 700; color: #ccff00;">5</div>
+            <div style="font-size: 12px; color: #777;">blocked 1</div>
+        </div>
+        <div class="stat-card fade-in">
+            <div style="color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Awaiting You</div>
+            <div style="font-size: 24px; font-weight: 700; color: #ccff00;">3</div>
+            <div style="font-size: 12px; color: #777;">click buy</div>
+        </div>
+        <div class="stat-card fade-in">
+            <div style="color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Positions / cap</div>
+            <div style="font-size: 24px; font-weight: 700; color: #ccff00;">2</div>
+            <div style="font-size: 12px; color: #777;">0.285 SOL</div>
+        </div>
+        <div class="stat-card fade-in pulse-border" style="border-color: #ccff00;">
+            <div style="color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Escape Alerts</div>
+            <div style="font-size: 24px; font-weight: 700; color: #ccff00;">100%</div>
+            <div style="font-size: 12px; color: #777;">0 miss</div>
+        </div>
+    </div>
+
+    <!-- ===== CONTROL ===== -->
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px;">
+        <button class="btn btn-start active" id="startBtn">▶ START BOT</button>
+        <button class="btn btn-stop" id="stopBtn" disabled>⏹ STOP BOT</button>
+        <button class="btn btn-scan" id="scanBtn">🔄 SCAN NOW</button>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+            <span style="color: #999; font-size: 14px;">Bot:</span>
+            <span id="statusLabel" style="font-weight: 700; color: #ccff00; font-size: 15px;">RUNNING</span>
+            <span style="display: inline-block; width: 10px; height: 10px; background: #ccff00; border-radius: 50%; animation: glowPulse 1s infinite; margin-left: 4px;"></span>
+        </div>
+    </div>
+
+    <!-- ===== TABLE ===== -->
+    <div style="margin-bottom: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 600; font-size: 16px;">📊 Screening Results - Awaiting Your Call</span>
+            <span style="color: #888; font-size: 13px;">3 tokens</span>
+        </div>
+        <div class="table-wrap">
+            <table class="token-table" id="tokenTable">
+                <thead>
+                    <tr>
+                        <th>TOKEN</th>
+                        <th>PRICE</th>
+                        <th>LIQ</th>
+                        <th>VOL</th>
+                        <th>HOLDERS</th>
+                        <th>RUG</th>
+                        <th>1H%</th>
+                        <th style="text-align: center;">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="tokenBody">
+                    <!-- Data akan diisi oleh JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== FUNNEL ===== -->
+    <div style="margin-bottom: 18px;">
+        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; background: #0f0f0f; padding: 12px 16px; border-radius: 40px; border: 1px solid #222;">
+            <div class="funnel-step"><span class="num">42</span><span class="label">Scan</span></div>
+            <span class="funnel-arrow">→</span>
+            <div class="funnel-step"><span class="num">8</span><span class="label">Safety</span></div>
+            <span class="funnel-arrow">→</span>
+            <div class="funnel-step"><span class="num">5</span><span class="label">Consensus</span></div>
+            <span class="funnel-arrow">→</span>
+            <div class="funnel-step"><span class="num">3</span><span class="label">ML Rank</span></div>
+            <span class="funnel-arrow">→</span>
+            <div class="funnel-step"><span class="num">3</span><span class="label">LLM</span></div>
+            <span class="funnel-arrow">→</span>
+            <div class="funnel-step" style="border-color: #ccff00; box-shadow: 0 0 24px rgba(204,255,0,0.2);"><span class="num">3</span><span class="label">Pending</span></div>
+        </div>
+    </div>
+
+    <!-- ===== OPEN POSITIONS ===== -->
+    <div style="margin-bottom: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 600; font-size: 16px;">📈 Open Positions</span>
+            <span style="color: #888; font-size: 13px;">2 positions</span>
+        </div>
+        <div class="pos-container" id="posContainer" style="display: flex; gap: 14px; flex-wrap: wrap;">
+            <!-- akan diisi JS -->
+        </div>
+    </div>
+
+    <!-- ===== LIVE LOG ===== -->
+    <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-weight: 600; font-size: 16px;">📋 Live Decision Log</span>
+            <span style="color: #888; font-size: 13px;">12 entries</span>
+        </div>
+        <div class="log-box" id="logBox">
+            <div class="log-entry"><span class="time">[17:57:42]</span> 🟢 BUY SUKSES! GOODDOG @ $0.000034 Tx: 5xP7...</div>
+            <div class="log-entry"><span class="time">[17:57:30]</span> 📡 Scanning... Found 42 tokens</div>
+            <div class="log-entry"><span class="time">[17:57:15]</span> ✅ Token GOODDOG lolos safety & momentum</div>
+            <div class="log-entry"><span class="time">[17:56:58]</span> 🟢 Bot started</div>
+        </div>
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 12px; border-top: 1px solid #1f1f1f; font-size: 13px; color: #555;">
+        <span>GMGN AI Trader v1.0.0  •  Live  •  Socket: 🟢 Connected</span>
+        <span style="color: #ccff00;">✦</span>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    // DATA & STATE
+    // ============================================================
+    const tokens = [
+        { name: 'THINKER', price: 0.000012, liq: 25.4, vol: 87.2, holders: 156, rug: 12, change: 15.2 },
+        { name: 'BASEPPL', price: 0.000008, liq: 18.7, vol: 92.1, holders: 112, rug: 22, change: 8.7 },
+        { name: 'GOODDOG', price: 0.000034, liq: 42.3, vol: 156.0, holders: 234, rug: 8, change: 22.3 }
+    ];
+
+    let positions = [
+        { name: 'GOODDOG', entry: 0.000034, sol: 0.05, pnl: 0.023 },
+        { name: 'BASEPPLE', entry: 0.000008, sol: 0.08, pnl: -0.002 }
+    ];
+
+    let logEntries = [
+        '[17:57:42] 🟢 BUY SUKSES! GOODDOG @ $0.000034 Tx: 5xP7...',
+        '[17:57:30] 📡 Scanning... Found 42 tokens',
+        '[17:57:15] ✅ Token GOODDOG lolos safety & momentum',
+        '[17:56:58] 🟢 Bot started'
+    ];
+
+    let botRunning = true;
+    let scanInterval = null;
+
+    // ============================================================
+    // DOM REFS
+    // ============================================================
+    const tokenBody = document.getElementById('tokenBody');
+    const posContainer = document.getElementById('posContainer');
+    const logBox = document.getElementById('logBox');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const scanBtn = document.getElementById('scanBtn');
+    const statusLabel = document.getElementById('statusLabel');
+
+    // ============================================================
+    // RENDER FUNCTIONS
+    // ============================================================
+    function renderTable() {
+        tokenBody.innerHTML = tokens.map(t => {
+            const rugClass = t.rug < 15 ? 'rug-low' : (t.rug < 25 ? 'rug-mid' : 'rug-high');
+            const changeClass = t.change >= 0 ? 'change-up' : 'change-down';
+            return `<tr class="fade-in">
+                <td><strong>${t.name}</strong></td>
+                <td>$${t.price.toFixed(8)}</td>
+                <td>$${t.liq}K</td>
+                <td>$${t.vol}K</td>
+                <td>${t.holders}</td>
+                <td class="${rugClass}">${t.rug}%</td>
+                <td class="${changeClass}">${t.change >= 0 ? '+' : ''}${t.change}%</td>
+                <td style="text-align: center;"><button class="btn-buy" data-token="${t.name}">BUY 0.1 SOL</button></td>
+            </tr>`;
+        }).join('');
+        // Attach event listeners to buy buttons
+        document.querySelectorAll('.btn-buy').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const tokenName = this.dataset.token;
+                addLog(`🟢 Membeli ${tokenName} 0.1 SOL (simulasi)`);
+                // Simulate position add
+                const found = tokens.find(t => t.name === tokenName);
+                if (found) {
+                    positions.push({ name: tokenName, entry: found.price, sol: 0.1, pnl: (Math.random() * 0.06 - 0.02) });
+                    renderPositions();
+                }
+            });
+        });
+    }
+
+    function renderPositions() {
+        if (positions.length === 0) {
+            posContainer.innerHTML = `<div style="color: #666; padding: 12px;">Belum ada posisi terbuka.</div>`;
+            return;
+        }
+        posContainer.innerHTML = positions.slice(-2).map(p => {
+            const pnlColor = p.pnl >= 0 ? '#ccff00' : '#ff6b6b';
+            return `<div class="pos-card fade-in" style="flex:1;">
+                <div style="font-weight:700; font-size:16px;">${p.name}</div>
+                <div style="color:#aaa; font-size:13px;">Entry: $${p.entry.toFixed(8)}</div>
+                <div style="color:#aaa; font-size:13px;">SOL: ${p.sol.toFixed(2)}</div>
+                <div style="font-weight:600; color:${pnlColor};">P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(3)} ${p.pnl >= 0 ? '🟢' : '🔴'}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderLogs() {
+        logBox.innerHTML = logEntries.slice(-12).map(msg => 
+            `<div class="log-entry fade-in"><span class="time">${msg.slice(0,9)}</span> ${msg.slice(10)}</div>`
+        ).join('');
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function addLog(msg) {
+        const time = `[${new Date().toTimeString().slice(0,8)}]`;
+        logEntries.push(`${time} ${msg}`);
+        if (logEntries.length > 50) logEntries.shift();
+        renderLogs();
+    }
+
+    // ============================================================
+    // SIMULASI SCAN (update table & stats)
+    // ============================================================
+    function simulateScan() {
+        addLog('📡 Memulai scanning...');
+        // Randomize token data sedikit
+        tokens.forEach(t => {
+            t.price = t.price * (0.92 + Math.random() * 0.16);
+            t.liq = Math.round((t.liq * (0.9 + Math.random() * 0.2)) * 10) / 10;
+            t.vol = Math.round((t.vol * (0.85 + Math.random() * 0.3)) * 10) / 10;
+            t.holders = Math.floor(t.holders * (0.95 + Math.random() * 0.1));
+            t.rug = Math.min(40, Math.floor(t.rug * (0.8 + Math.random() * 0.4)));
+            t.change = +(t.change * (0.7 + Math.random() * 0.6)).toFixed(1);
+        });
+        // Update stat cards
+        document.querySelectorAll('.stat-card .num')[0].textContent = Math.floor(30 + Math.random() * 30);
+        document.querySelectorAll('.stat-card .num')[1].textContent = Math.floor(4 + Math.random() * 8);
+        document.querySelectorAll('.stat-card .num')[2].textContent = Math.floor(2 + Math.random() * 6);
+        document.querySelectorAll('.stat-card .num')[3].textContent = Math.floor(1 + Math.random() * 4);
+        document.querySelectorAll('.stat-card .num')[4].textContent = positions.length;
+        // Funnel update (angka random)
+        document.querySelectorAll('.funnel-step .num')[0].textContent = Math.floor(30 + Math.random() * 30);
+        document.querySelectorAll('.funnel-step .num')[1].textContent = Math.floor(4 + Math.random() * 10);
+        document.querySelectorAll('.funnel-step .num')[2].textContent = Math.floor(2 + Math.random() * 8);
+        document.querySelectorAll('.funnel-step .num')[3].textContent = Math.floor(1 + Math.random() * 5);
+        document.querySelectorAll('.funnel-step .num')[4].textContent = Math.floor(1 + Math.random() * 4);
+        document.querySelectorAll('.funnel-step .num')[5].textContent = Math.floor(1 + Math.random() * 4);
+
+        renderTable();
+        addLog(`✅ Scan selesai. Menemukan ${tokens.length} token potensial.`);
+    }
+
+    // ============================================================
+    // BOT CONTROL
+    // ============================================================
+    function startBot() {
+        if (botRunning) return;
+        botRunning = true;
+        statusLabel.textContent = 'RUNNING';
+        statusLabel.style.color = '#ccff00';
+        startBtn.classList.add('active');
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        addLog('🟢 Bot started.');
+        // Auto scan tiap 30 detik
+        if (scanInterval) clearInterval(scanInterval);
+        scanInterval = setInterval(() => {
+            if (botRunning) simulateScan();
+        }, 30000);
+        // Scan langsung
+        simulateScan();
+    }
+
+    function stopBot() {
+        if (!botRunning) return;
+        botRunning = false;
+        statusLabel.textContent = 'STOPPED';
+        statusLabel.style.color = '#ff6b6b';
+        startBtn.classList.remove('active');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        if (scanInterval) {
+            clearInterval(scanInterval);
+            scanInterval = null;
+        }
+        addLog('🔴 Bot stopped.');
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    renderTable();
+    renderPositions();
+    renderLogs();
+
+    // Event listeners
+    startBtn.addEventListener('click', startBot);
+    stopBtn.addEventListener('click', stopBot);
+    scanBtn.addEventListener('click', () => {
+        if (!botRunning) {
+            addLog('⚠️ Bot sedang berhenti. Nyalakan dulu dengan START.');
+            return;
+        }
+        simulateScan();
+    });
+
+    // Auto-start bot
+    startBot();
+
+    // Tambahan: animasi stat card refresh
+    setInterval(() => {
+        // update posisi P&L random
+        positions.forEach(p => {
+            p.pnl = +(p.pnl + (Math.random() * 0.008 - 0.004)).toFixed(3);
+        });
+        renderPositions();
+        // update stat positions
+        document.querySelectorAll('.stat-card .num')[4].textContent = positions.length;
+    }, 5000);
+
+    // Simulasi log tambahan setiap 10 detik
+    setInterval(() => {
+        if (botRunning) {
+            const msgs = [
+                '📊 Memantau pasar...',
+                '🔍 Filter safety aktif',
+                '⚡ Sinyal baru terdeteksi',
+                '🔄 Mengupdate data on-chain'
+            ];
+            addLog(msgs[Math.floor(Math.random() * msgs.length)]);
+        }
+    }, 12000);
+
+    console.log('🚀 GMGN AI Trader v1.0.0 loaded');
+</script>
 </body>
 </html>
