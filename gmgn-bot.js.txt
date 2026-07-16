@@ -1,0 +1,491 @@
+const { exec } = require('child_process');
+const { Keypair, Connection, PublicKey } = require('@solana/web3.js');
+const bs58 = require('bs58').default;
+const fs = require('fs');
+const axios = require('axios');
+require('dotenv').config();
+
+// ============================================================
+// ⚙️ KONFIGURASI — 1000 TOKEN TRENDING
+// ============================================================
+const CONFIG = {
+    SOL_MINT: 'So11111111111111111111111111111111111111112',
+    LAMPORTS_PER_SOL: 1_000_000_000,
+
+    MIN_LIQUIDITY: 20000,
+    MIN_VOLUME: 50000,
+    MIN_HOLDERS: 80,
+
+    MAX_SOL_PER_TRADE: 0.1,
+    SLIPPAGE: 80,
+    STOP_LOSS: 0.95,
+    TAKE_PROFIT_1: 2.0,
+    TAKE_PROFIT_2: 2.5,
+    MAX_ACTIVE: 2,
+    DAILY_LOSS_LIMIT: 0.002,
+
+    SCAN_INTERVAL: 5000,
+    SCAN_LIMIT: 1000,
+
+    SAFETY_MIN_LIQUIDITY: 20000,
+    SAFETY_MAX_RUG_RATIO: 0.30,
+    SAFETY_MAX_TOP10_HOLDER_RATE: 0.45,
+    SAFETY_REQUIRE_RENOUNCED_MINT: true,
+    SAFETY_REQUIRE_RENOUNCED_FREEZE: true,
+    SAFETY_MAX_SNIPER_COUNT: 100,
+    SAFETY_MIN_HOLDERS: 40,
+    SAFETY_MAX_BUY_TAX: 10,
+    SAFETY_MAX_SELL_TAX: 10,
+    SAFETY_REQUIRE_HONEYPOT_FALSE: true,
+
+    MIN_PRICE_CHANGE_1H: 5,
+    MIN_PRICE_CHANGE_5M: 2,
+    MIN_PRICE_CHANGE_1M: 0,
+    MIN_VOLUME_MOMENTUM: 40000,
+    MIN_BUY_RATIO: 0.50,
+    MIN_SWAPS: 500,
+    MIN_HOT_LEVEL: 2,
+
+    POSITION_TIME_LIMIT: 60,
+    MIN_PROFIT_TO_HOLD: 1.10,
+
+    MIN_SOL_BALANCE: 0.1,
+};
+
+const DB_PATH = './database.json';
+const LOG_PATH = './logs.txt';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const RPC_URL = process.env.RPC_URL || 'https://api.mainnet-beta.solana.com';
+
+const wallet = Keypair.fromSecretKey(bs58.decode(process.env.WALLET_PRIVATE_KEY));
+const fromAddress = wallet.publicKey.toString();
+const connection = new Connection(RPC_URL);
+
+async function getBalance(address) {
+    try {
+        const publicKey = new PublicKey(address);
+        const balance = await connection.getBalance(publicKey);
+        return balance / CONFIG.LAMPORTS_PER_SOL;
+    } catch (e) { return 0; }
+}
+
+function logToFile(msg) {
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] ${msg}\n`;
+    try { fs.appendFileSync(LOG_PATH, line, 'utf8'); } catch {}
+    console.log(msg);
+}
+
+async function sendTelegram(msg) {
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+    try {
+        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            chat_id: TELEGRAM_CHAT_ID,
+            text: msg,
+            parse_mode: 'Markdown'
+        });
+        logToFile(`📨 Telegram: ${msg.substring(0, 50)}...`);
+    } catch (e) {}
+}
+
+logToFile(`✅ Wallet: ${fromAddress}`);
+logToFile(`🤖 Telegram: ${TELEGRAM_BOT_TOKEN ? '✅ ON' : '❌ OFF'}`);
+logToFile(`💰 Buy: 0.1 SOL | TP: 100% / 150% | SL: 5%`);
+logToFile(`⏱️ Time limit: ${CONFIG.POSITION_TIME_LIMIT}s`);
+logToFile(`🛡️ Daily loss limit: ${CONFIG.DAILY_LOSS_LIMIT} SOL`);
+logToFile(`⚡ Scan: ${CONFIG.SCAN_INTERVAL/1000}s | Limit: ${CONFIG.SCAN_LIMIT} token`);
+logToFile(`🔍 Mode: SIMULASI jika saldo < ${CONFIG.MIN_SOL_BALANCE} SOL`);
+logToFile('🎯 Mulai...\n');
+
+let scannedTokens = new Set();
+
+function getState() {
+    try { return JSON.parse(fs.readFileSync(DB_PATH)); }
+    catch { return { dailyPL: 0, tradeCount: 0, openPositions: [], tradeHistory: [], lastUpdated: new Date().toISOString().split('T')[0] }; }
+}
+function saveState(s) { fs.writeFileSync(DB_PATH, JSON.stringify(s, null, 2)); }
+
+function resetDaily() {
+    const s = getState();
+    const today = new Date().toISOString().split('T')[0];
+    if (s.lastUpdated !== today) {
+        s.dailyPL = 0;
+        s.tradeCount = 0;
+        s.tradeHistory = [];
+        s.lastUpdated = today;
+        saveState(s);
+        logToFile('📅 Daily reset');
+        scannedTokens.clear();
+    }
+}
+
+function canTrade() {
+    resetDaily();
+    const s = getState();
+    if (s.dailyPL <= -CONFIG.DAILY_LOSS_LIMIT) {
+        logToFile(`⛔ Daily loss limit reached: $${s.dailyPL.toFixed(4)} SOL`);
+        return false;
+    }
+    if (s.tradeCount >= 10) return false;
+    if (s.openPositions.length >= CONFIG.MAX_ACTIVE) return false;
+    return true;
+}
+
+function execCLI(cmd) {
+    return new Promise((resolve) => {
+        exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {
+            const out = (stdout || '') + (stderr || '');
+            if (err) {
+                if (out.includes('insufficient') || out.includes('balance')) {
+                    resolve({ success: false, error: 'Insufficient balance', output: out });
+                } else if (out.includes('DECODER')) {
+                    resolve({ success: false, error: 'Private key error (DECODER)', output: out });
+                } else {
+                    resolve({ success: false, error: err.message, output: out });
+                }
+            } else {
+                try {
+                    const data = JSON.parse(stdout);
+                    resolve({ success: true, data, output: stdout });
+                } catch {
+                    resolve({ success: true, raw: stdout, output: stdout });
+                }
+            }
+        });
+    });
+}
+
+async function executeBuy(tokenAddress, solAmount, tokenSymbol, tokenPrice) {
+    const balance = await getBalance(fromAddress);
+
+    if (balance < CONFIG.MIN_SOL_BALANCE) {
+        const msg = `🔍 SIMULASI BUY\nToken: ${tokenSymbol}\nAddress: ${tokenAddress}\nPrice: $${tokenPrice}\nSOL: ${solAmount}\nSaldo: ${balance.toFixed(4)} SOL (tidak cukup, skip buy)`;
+        logToFile(`🔍 SIMULASI: Buy ${tokenSymbol} @ $${tokenPrice} (saldo ${balance.toFixed(4)} SOL)`);
+        await sendTelegram(msg);
+        return { success: false, error: 'Insufficient balance', simulated: true };
+    }
+
+    const lamports = Math.floor(solAmount * CONFIG.LAMPORTS_PER_SOL);
+    const cmd = `npx gmgn-cli swap buy --chain sol --from ${fromAddress} --input-token ${CONFIG.SOL_MINT} --output-token ${tokenAddress} --amount ${lamports} --slippage ${CONFIG.SLIPPAGE} --priority-fee auto`;
+    logToFile(`🔄 REAL BUY: ${cmd.substring(0, 120)}...`);
+    const result = await execCLI(cmd);
+    if (result.success) {
+        const data = result.data || JSON.parse(result.raw);
+        const txHash = data.tx_hash || data.txHash || data.signature || 'unknown';
+        logToFile(`✅ BUY SUKSES! Tx: ${txHash}`);
+        await sendTelegram(`🟢 BUY SUKSES!\nToken: ${tokenAddress}\nSOL: ${solAmount}\nTx: ${txHash}`);
+        return { success: true, txHash };
+    } else {
+        logToFile(`❌ BUY GAGAL: ${result.error}`);
+        return { success: false, error: result.error };
+    }
+}
+
+async function cliSell(tokenAddress, tokenAmount) {
+    const lamports = Math.floor(tokenAmount);
+    if (lamports <= 0) return { success: false, error: 'Amount too small' };
+
+    const cmd = `npx gmgn-cli swap sell --chain sol --from ${fromAddress} --input-token ${tokenAddress} --output-token ${CONFIG.SOL_MINT} --amount ${lamports} --slippage ${CONFIG.SLIPPAGE} --priority-fee auto`;
+    logToFile(`🔄 SELL: ${cmd.substring(0, 120)}...`);
+    const result = await execCLI(cmd);
+    if (result.success) {
+        const data = result.data || JSON.parse(result.raw);
+        const txHash = data.tx_hash || data.txHash || data.signature || 'unknown';
+        logToFile(`✅ SELL SUKSES! Tx: ${txHash}`);
+        await sendTelegram(`🔴 SELL SUKSES!\nToken: ${tokenAddress}\nTx: ${txHash}`);
+        return { success: true, txHash };
+    } else {
+        logToFile(`❌ SELL GAGAL: ${result.error}`);
+        return { success: false, error: result.error };
+    }
+}
+
+async function scanTrendingTokens() {
+    const cmd = `npx gmgn-cli market trending --chain sol --interval 1h --limit ${CONFIG.SCAN_LIMIT} --raw`;
+    logToFile(`📡 Scanning ${CONFIG.SCAN_LIMIT} tokens...`);
+    const result = await execCLI(cmd);
+    if (!result.success) {
+        logToFile(`❌ Scan error: ${result.error}`);
+        return [];
+    }
+    try {
+        const data = result.data || JSON.parse(result.raw);
+        const tokens = data.data?.rank || data.rank || data.tokens || [];
+        logToFile(`✅ Found ${tokens.length} tokens`);
+        const newTokens = tokens.filter(t => {
+            const addr = t.address || t.contract_address;
+            if (scannedTokens.has(addr)) return false;
+            scannedTokens.add(addr);
+            return true;
+        });
+        logToFile(`🆕 ${newTokens.length} token baru`);
+        return newTokens;
+    } catch (e) {
+        logToFile(`❌ Parse error: ${e.message}`);
+        return [];
+    }
+}
+
+function checkTokenSafety(token) {
+    const liq = token.liquidity_usd || token.liquidity || 0;
+    const rugRatio = token.rug_ratio || 0;
+    const top10HolderRate = token.top_10_holder_rate || 0;
+    const renouncedMint = token.renounced_mint === 1;
+    const renouncedFreeze = token.renounced_freeze_account === 1;
+    const sniperCount = token.sniper_count || 0;
+    const holders = token.holder_count || 0;
+    const buyTax = parseFloat(token.buy_tax) || 0;
+    const sellTax = parseFloat(token.sell_tax) || 0;
+    const isHoneypot = token.is_honeypot === 1;
+
+    const checks = {
+        liquidity: liq >= CONFIG.SAFETY_MIN_LIQUIDITY,
+        rugRatio: rugRatio <= CONFIG.SAFETY_MAX_RUG_RATIO,
+        top10Holder: top10HolderRate <= CONFIG.SAFETY_MAX_TOP10_HOLDER_RATE,
+        renouncedMint: CONFIG.SAFETY_REQUIRE_RENOUNCED_MINT ? renouncedMint : true,
+        renouncedFreeze: CONFIG.SAFETY_REQUIRE_RENOUNCED_FREEZE ? renouncedFreeze : true,
+        sniperCount: sniperCount <= CONFIG.SAFETY_MAX_SNIPER_COUNT,
+        holders: holders >= CONFIG.SAFETY_MIN_HOLDERS,
+        buyTax: buyTax <= CONFIG.SAFETY_MAX_BUY_TAX,
+        sellTax: sellTax <= CONFIG.SAFETY_MAX_SELL_TAX,
+        honeypot: CONFIG.SAFETY_REQUIRE_HONEYPOT_FALSE ? !isHoneypot : true,
+    };
+
+    const passed = Object.values(checks).every(v => v === true);
+    if (!passed) {
+        const failed = Object.keys(checks).filter(k => !checks[k]);
+        logToFile(`🛡️ Token ${token.symbol} GAGAL safety: ${failed.join(', ')}`);
+    } else {
+        logToFile(`✅ Token ${token.symbol} lolos safety!`);
+    }
+    return { passed, checks };
+}
+
+function checkMomentum(token) {
+    const priceChange1h = token.price_change_percent1h || 0;
+    const priceChange5m = token.price_change_percent5m || 0;
+    const priceChange1m = token.price_change_percent1m || 0;
+    const volume = token.volume || 0;
+    const buys = token.buys || 0;
+    const sells = token.sells || 0;
+    const swaps = token.swaps || 0;
+    const hotLevel = token.hot_level || 0;
+
+    const totalTx = buys + sells;
+    const buyRatio = totalTx > 0 ? buys / totalTx : 0;
+
+    const checks = {
+        priceChange1h: priceChange1h >= CONFIG.MIN_PRICE_CHANGE_1H,
+        priceChange5m: priceChange5m >= CONFIG.MIN_PRICE_CHANGE_5M,
+        priceChange1m: priceChange1m >= CONFIG.MIN_PRICE_CHANGE_1M,
+        volume: volume >= CONFIG.MIN_VOLUME_MOMENTUM,
+        buyRatio: buyRatio >= CONFIG.MIN_BUY_RATIO,
+        swaps: swaps >= CONFIG.MIN_SWAPS,
+        hotLevel: hotLevel >= CONFIG.MIN_HOT_LEVEL,
+    };
+
+    const passed = Object.values(checks).every(v => v === true);
+    if (!passed) {
+        const failed = Object.keys(checks).filter(k => !checks[k]);
+        logToFile(`📉 Token ${token.symbol} GAGAL momentum: ${failed.join(', ')}`);
+    } else {
+        logToFile(`📈 Token ${token.symbol} lolos momentum! 1h: ${priceChange1h}% | 5m: ${priceChange5m}% | Vol: ${volume} | BuyRatio: ${(buyRatio*100).toFixed(0)}% | Hot: ${hotLevel}`);
+    }
+    return { passed, checks };
+}
+
+function getPrice(tokens, address) {
+    const t = tokens.find(t => t.address === address || t.contract_address === address);
+    return t?.price || t?.price_usd || 0;
+}
+
+async function monitorPositions(tokens) {
+    const state = getState();
+    const toSell = [];
+    const now = Date.now();
+
+    for (const pos of state.openPositions) {
+        const price = getPrice(tokens, pos.tokenAddress);
+        if (!price) continue;
+        const plPercent = (price - pos.entryPrice) / pos.entryPrice;
+        const age = (now - pos.entryTime) / 1000;
+
+        if (age > CONFIG.POSITION_TIME_LIMIT && plPercent < (CONFIG.MIN_PROFIT_TO_HOLD - 1)) {
+            toSell.push({ pos, reason: `⏱️ Time limit (${age.toFixed(0)}s) - profit ${(plPercent*100).toFixed(1)}% < 10%`, plPercent, amount: pos.solAmount, isPartial: false });
+            continue;
+        }
+
+        if (plPercent >= (CONFIG.TAKE_PROFIT_1 - 1) && plPercent < (CONFIG.TAKE_PROFIT_2 - 1)) {
+            const halfAmount = pos.solAmount / 2;
+            toSell.push({ pos, reason: `✅ TP 100% (${(plPercent*100).toFixed(1)}%)`, plPercent, amount: halfAmount, isPartial: true });
+        } else if (plPercent >= (CONFIG.TAKE_PROFIT_2 - 1)) {
+            toSell.push({ pos, reason: `✅ TP 150% (${(plPercent*100).toFixed(1)}%)`, plPercent, amount: pos.solAmount, isPartial: false });
+        } else if (plPercent <= (CONFIG.STOP_LOSS - 1)) {
+            toSell.push({ pos, reason: `❌ SL 5% (${(plPercent*100).toFixed(1)}%)`, plPercent, amount: pos.solAmount, isPartial: false });
+        }
+    }
+
+    for (const { pos, reason, plPercent, amount, isPartial } of toSell) {
+        logToFile(`📤 Sell ${pos.tokenSymbol} - ${reason}`);
+        const solPrice = 150;
+        const tokenLamports = Math.floor((amount * solPrice / pos.entryPrice) * 1e9);
+        const result = await cliSell(pos.tokenAddress, tokenLamports);
+        if (result.success) {
+            const pl = plPercent * amount * solPrice;
+            state.dailyPL += pl;
+            state.tradeCount += 1;
+
+            const duration = Math.floor((Date.now() - pos.entryTime) / 1000);
+            const historyEntry = {
+                time: new Date().toISOString(),
+                token: pos.tokenSymbol,
+                tokenAddress: pos.tokenAddress,
+                entryPrice: pos.entryPrice,
+                exitPrice: price,
+                solAmount: amount,
+                pl: pl,
+                plPercent: plPercent * 100,
+                reason: reason,
+                duration: duration,
+                txHash: result.txHash,
+                isPartial: isPartial,
+                dailyPL: state.dailyPL,
+            };
+            state.tradeHistory.push(historyEntry);
+            saveState(state);
+
+            if (isPartial) {
+                const idx = state.openPositions.findIndex(p => p.tokenAddress === pos.tokenAddress);
+                if (idx !== -1) {
+                    state.openPositions[idx].solAmount -= amount;
+                    if (state.openPositions[idx].solAmount <= 0) state.openPositions.splice(idx, 1);
+                }
+            } else {
+                state.openPositions = state.openPositions.filter(p => p.tokenAddress !== pos.tokenAddress);
+            }
+            saveState(state);
+
+            const durationStr = duration < 60 ? `${duration}s` : `${Math.floor(duration/60)}m ${duration%60}s`;
+            const emoji = pl >= 0 ? '🟢' : '🔴';
+            await sendTelegram(
+                `${emoji} SELL ${pos.tokenSymbol}\n` +
+                `Entry: $${pos.entryPrice.toFixed(8)}\n` +
+                `Exit: $${price.toFixed(8)}\n` +
+                `P&L: $${pl.toFixed(4)} (${(plPercent*100).toFixed(1)}%)\n` +
+                `SOL: ${amount.toFixed(4)}\n` +
+                `Durasi: ${durationStr}\n` +
+                `Reason: ${reason}\n` +
+                `Daily: $${state.dailyPL.toFixed(4)} SOL\n` +
+                `Tx: ${result.txHash}`
+            );
+
+            if (state.tradeHistory.length % 10 === 0) {
+                await sendTradeHistory(state.tradeHistory);
+            }
+
+            logToFile(`✅ Sold | P&L: $${pl.toFixed(4)} | Daily: $${state.dailyPL.toFixed(4)} SOL`);
+        }
+    }
+}
+
+async function sendTradeHistory(history) {
+    if (!history || history.length === 0) return;
+    const last10 = history.slice(-10);
+    let msg = `📜 Trade History (${last10.length} terakhir)\n\n`;
+    let totalPL = 0;
+    for (const t of last10) {
+        const emoji = t.pl >= 0 ? '✅' : '❌';
+        totalPL += t.pl;
+        const time = new Date(t.time).toLocaleTimeString();
+        const dur = t.duration < 60 ? `${t.duration}s` : `${Math.floor(t.duration/60)}m ${t.duration%60}s`;
+        msg += `${emoji} ${t.token} | ${t.reason}\n`;
+        msg += `   P&L: $${t.pl.toFixed(4)} (${t.plPercent.toFixed(1)}%) | ${dur}\n`;
+        msg += `   ${time}\n`;
+    }
+    msg += `\n📊 Total P&L history: $${totalPL.toFixed(4)} SOL`;
+    msg += `\n📊 Daily P&L: $${last10[last10.length-1]?.dailyPL?.toFixed(4) || '0'} SOL`;
+    await sendTelegram(msg);
+}
+
+async function main() {
+    logToFile('🚀 GMGN Bot — SCAN 1000 TOKEN TRENDING');
+    logToFile(`💰 Buy: 0.1 SOL | TP: 100% / 150% | SL: 5%`);
+    logToFile(`⏱️ Time limit: ${CONFIG.POSITION_TIME_LIMIT}s`);
+    logToFile(`🛡️ Daily loss limit: ${CONFIG.DAILY_LOSS_LIMIT} SOL`);
+    logToFile(`⚡ Scan: ${CONFIG.SCAN_INTERVAL/1000}s | Limit: ${CONFIG.SCAN_LIMIT} token`);
+    logToFile(`🔍 Mode: SIMULASI jika saldo < ${CONFIG.MIN_SOL_BALANCE} SOL`);
+    logToFile('⏳ Auto trading started...\n');
+
+    let lastScan = 0;
+
+    while (true) {
+        try {
+            const now = Date.now();
+            resetDaily();
+
+            if (now - lastScan >= CONFIG.SCAN_INTERVAL) {
+                scannedTokens.clear();
+
+                const tokens = await scanTrendingTokens();
+
+                if (tokens.length) {
+                    await monitorPositions(tokens);
+
+                    const qualified = tokens.filter(t => {
+                        const safety = checkTokenSafety(t);
+                        if (!safety.passed) return false;
+                        const momentum = checkMomentum(t);
+                        return momentum.passed;
+                    });
+
+                    if (qualified.length === 0) {
+                        logToFile('⏭️ Tidak ada token lolos filter dari 1000');
+                    } else {
+                        logToFile(`🎯 ${qualified.length} token lolos filter dari 1000`);
+
+                        for (const token of qualified) {
+                            if (!canTrade()) {
+                                logToFile(`⛔ Max posisi tercapai (${CONFIG.MAX_ACTIVE})`);
+                                break;
+                            }
+
+                            const address = token.address || token.contract_address;
+                            const symbol = token.symbol || 'Unknown';
+                            const price = getPrice(tokens, address);
+
+                            if (price > 0) {
+                                const solAmount = CONFIG.MAX_SOL_PER_TRADE;
+                                const result = await executeBuy(address, solAmount, symbol, price);
+                                if (result.success && !result.simulated) {
+                                    const state = getState();
+                                    state.openPositions.push({
+                                        tokenAddress: address,
+                                        tokenSymbol: symbol,
+                                        entryPrice: price,
+                                        entryTime: Date.now(),
+                                        solAmount: solAmount
+                                    });
+                                    state.tradeCount += 1;
+                                    saveState(state);
+                                }
+                            }
+                        }
+                    }
+                }
+                lastScan = now;
+            }
+
+            await new Promise(r => setTimeout(r, 200));
+        } catch (e) {
+            logToFile(`❌ Error: ${e.message}`);
+            await sendTelegram(`❌ Error: ${e.message}`);
+            await new Promise(r => setTimeout(r, 3000));
+        }
+    }
+}
+
+main().catch(e => {
+    logToFile(`Fatal: ${e.message}`);
+    process.exit(1);
+});
