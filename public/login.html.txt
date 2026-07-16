@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — GMGN AI Trader</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">AI TRADER</span>
+            </div>
+            <p class="subtitle">Masukkan Private Key Wallet Solana</p>
+
+            <form id="login-form">
+                <div class="input-group">
+                    <label for="private-key">Private Key (Base58)</label>
+                    <input type="password" id="private-key" placeholder="Contoh: 3fXbWjCmLz653sEggqhLTbU6gXJEMXyM1f4Jb3SfsLTgNERfnWwxSTwMPrnodjzoomQ1Zd2jQpFye1ag8CsnixjV" required>
+                    <small>Private key akan digunakan untuk menandatangani transaksi. Tidak disimpan permanen.</small>
+                </div>
+
+                <button type="submit" id="login-btn">🔑 Login & Mulai Trading</button>
+                <div id="login-error" class="error-message"></div>
+            </form>
+
+            <div class="footer-info">
+                <span>🔒 Koneksi aman via HTTPS (jika di-deploy)</span>
+                <span>•</span>
+                <span>GMGN AI Trader v1.0.0</span>
+            </div>
+        </div>
+    </div>
+    <script src="login.js"></script>
+</body>
+</html>

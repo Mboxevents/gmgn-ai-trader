@@ -1,0 +1,260 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-primary: #0a0e12;
+    --bg-secondary: #121820;
+    --bg-card: #1a2230;
+    --border-color: #2a3a4a;
+    --text-primary: #e8edf2;
+    --text-secondary: #8899aa;
+    --text-muted: #556677;
+    --green: #00d4a0;
+    --green-bg: rgba(0, 212, 160, 0.12);
+    --green-border: rgba(0, 212, 160, 0.25);
+    --red: #ff4757;
+    --yellow: #ffb142;
+    --purple: #7b61ff;
+    --purple-bg: rgba(123, 97, 255, 0.12);
+    --radius: 12px;
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+body {
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'Courier New', monospace;
+    padding: 20px;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 480px;
+}
+
+.login-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    padding: 36px 28px;
+    box-shadow: var(--shadow);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.logo-icon {
+    font-size: 28px;
+    color: var(--green);
+}
+
+.logo-text {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.5px;
+}
+
+.logo-badge {
+    background: var(--purple-bg);
+    color: var(--purple);
+    padding: 2px 12px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border: 1px solid rgba(123, 97, 255, 0.2);
+}
+
+.subtitle {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 24px;
+}
+
+.wallet-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-primary);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    margin-bottom: 16px;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+}
+
+.status-indicator.connected {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+}
+
+.status-indicator.connecting {
+    background: var(--yellow);
+    animation: pulse 1s infinite;
+}
+
+.status-indicator.disconnected {
+    background: var(--red);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+#status-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.wallet-info {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-color);
+}
+
+.wallet-info.hidden {
+    display: none;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.info-label {
+    color: var(--text-muted);
+}
+
+.info-value {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    word-break: break-all;
+    max-width: 70%;
+    text-align: right;
+}
+
+.btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.btn {
+    padding: 14px 20px;
+    border: none;
+    border-radius: var(--radius);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn:hover { transform: translateY(-1px); }
+
+.btn-connect {
+    background: var(--purple);
+    color: #fff;
+}
+
+.btn-connect:hover {
+    background: #8b71ff;
+    box-shadow: 0 0 20px rgba(123, 97, 255, 0.3);
+}
+
+.btn-connect:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-disconnect {
+    background: var(--red);
+    color: #fff;
+}
+
+.btn-disconnect:hover {
+    background: #ff6a78;
+}
+
+.btn-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.error-message {
+    color: var(--red);
+    font-size: 13px;
+    margin-top: 12px;
+    text-align: center;
+    min-height: 20px;
+}
+
+.realtime-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.5s infinite;
+}
+
+.footer-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    padding-top: 16px;
+}
+
+@media (max-width: 480px) {
+    .login-card { padding: 20px 16px; }
+    .logo-text { font-size: 18px; }
+    .btn { font-size: 14px; padding: 12px 16px; }
+}

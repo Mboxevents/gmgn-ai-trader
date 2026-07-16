@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Wallet Phantom — GMGN AI Trader</title>
+    <link rel="stylesheet" href="login-phantom.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">AI TRADER</span>
+                <span class="logo-badge">PHANTOM</span>
+            </div>
+            <p class="subtitle">Hubungkan wallet Phantom untuk mulai trading</p>
+
+            <!-- Status Wallet -->
+            <div id="wallet-status" class="wallet-status">
+                <div class="status-indicator" id="status-indicator"></div>
+                <span id="status-text">⏳ Menunggu koneksi...</span>
+            </div>
+
+            <!-- Wallet Info -->
+            <div id="wallet-info" class="wallet-info hidden">
+                <div class="info-row">
+                    <span class="info-label">Address</span>
+                    <span class="info-value" id="wallet-address">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Balance (SOL)</span>
+                    <span class="info-value" id="wallet-balance">0.0000</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Balance (USDC)</span>
+                    <span class="info-value" id="wallet-usdc">0.0000</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Network</span>
+                    <span class="info-value" id="wallet-network">Mainnet</span>
+                </div>
+            </div>
+
+            <!-- Tombol -->
+            <div class="btn-group">
+                <button id="connect-btn" class="btn btn-connect">
+                    <img src="https://phantom.app/img/phantom-icon.svg" alt="Phantom" class="btn-icon" onerror="this.style.display='none'">
+                    Connect Phantom Wallet
+                </button>
+                <button id="disconnect-btn" class="btn btn-disconnect hidden">🔌 Disconnect</button>
+            </div>
+
+            <div id="login-error" class="error-message"></div>
+
+            <!-- Real-time Update Info -->
+            <div class="realtime-info">
+                <span class="live-dot"></span>
+                Real-time updates aktif
+            </div>
+
+            <div class="footer-info">
+                <span>🔒 Koneksi aman via Phantom Wallet</span>
+                <span>•</span>
+                <span>GMGN AI Trader v1.0.0</span>
+            </div>
+        </div>
+    </div>
+    <script src="login-phantom.js"></script>
+</body>
+</html>

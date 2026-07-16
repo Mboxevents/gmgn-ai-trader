@@ -1,0 +1,56 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('login-form');
+    const privateKeyInput = document.getElementById('private-key');
+    const loginBtn = document.getElementById('login-btn');
+    const errorDiv = document.getElementById('login-error');
+
+    fetch('/check-session')
+        .then(res => res.json())
+        .then(data => {
+            if (data.loggedIn) {
+                window.location.href = '/dashboard';
+            }
+        })
+        .catch(() => {});
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const privateKey = privateKeyInput.value.trim();
+
+        if (!privateKey) {
+            errorDiv.textContent = '❌ Private key tidak boleh kosong.';
+            return;
+        }
+
+        if (privateKey.length < 80 || privateKey.length > 100) {
+            errorDiv.textContent = '❌ Format private key tidak valid (harus base58).';
+            return;
+        }
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = '⏳ Memverifikasi...';
+        errorDiv.textContent = '';
+
+        try {
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                errorDiv.textContent = `❌ ${data.error || 'Login gagal.'}`;
+                loginBtn.disabled = false;
+                loginBtn.textContent = '🔑 Login & Mulai Trading';
+            }
+        } catch (err) {
+            errorDiv.textContent = '❌ Terjadi kesalahan koneksi.';
+            loginBtn.disabled = false;
+            loginBtn.textContent = '🔑 Login & Mulai Trading';
+        }
+    });
+});
